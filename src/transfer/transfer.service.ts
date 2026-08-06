@@ -11,12 +11,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { SecurityService } from '../security/security.service';
 
 @Injectable()
 export class TransferService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue('webhook_queue') private readonly webhookQueue: Queue,
+    private readonly securityService: SecurityService,
   ) {}
 
   async executeTransfer(
@@ -32,8 +34,10 @@ export class TransferService {
     if (senderId === receiverId)
       throw new BadRequestException('Cannot transfer to the same account');
 
-    const transactionId = randomUUID();
+    // Check velocity limits BEFORE starting the expensive DB transaction
+    await this.securityService.enforceTransferVelocity(senderId);
 
+    const transactionId = randomUUID();
     //Always lock rows in a consistent order (Deadlock Prevention)
     const [firstId, secondId] = [senderId, receiverId].sort();
 

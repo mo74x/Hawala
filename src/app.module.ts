@@ -10,6 +10,7 @@ import { RedisModule } from './redis/redis.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaService } from './prisma/prisma.service';
+import { SecurityModule } from './security/security.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { PrismaService } from './prisma/prisma.service';
       name: 'webhook_queue',
     }),
     TransferModule,
+    SecurityModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
