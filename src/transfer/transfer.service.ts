@@ -9,10 +9,15 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class TransferService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue('webhook_queue') private readonly webhookQueue: Queue,
+  ) {}
 
   async executeTransfer(
     senderId: string,
@@ -34,7 +39,7 @@ export class TransferService {
 
     try {
       //Everything succeeds or everything rolls back
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         //Lock the rows so no other request can touch them until we commit
         await tx.$queryRaw`SELECT * FROM "Account" WHERE id = ${firstId}::uuid FOR UPDATE`;
         await tx.$queryRaw`SELECT * FROM "Account" WHERE id = ${secondId}::uuid FOR UPDATE`;
@@ -82,6 +87,28 @@ export class TransferService {
 
         return { transactionId, status: 'SUCCESS' };
       });
+
+      // Dispatch background job outside of the database transaction
+      await this.webhookQueue.add(
+        'transfer.completed',
+        {
+          transactionId: result.transactionId,
+          senderId,
+          receiverId,
+          amount,
+          timestamp: new Date().toISOString(),
+        },
+        {
+          attempts: 5, // Retry up to 5 times if the merchant API fails
+          backoff: {
+            type: 'exponential',
+            delay: 2000, // 2s, 4s, 8s, 16s, 32s
+          },
+          removeOnComplete: true, // Keep Redis clean
+        },
+      );
+
+      return result;
     } catch (error) {
       // Re-throw known HTTP exceptions
       if (error instanceof BadRequestException) throw error;
