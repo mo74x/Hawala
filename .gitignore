@@ -3,6 +3,12 @@
 /node_modules
 /build
 
+# AI Skills
+.agents
+.claude
+.windsurf
+skills-lock.json
+
 # Logs
 logs
 *.log
@@ -54,3 +60,5 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+/generated/prisma
