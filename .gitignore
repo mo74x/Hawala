@@ -9,6 +9,9 @@
 .windsurf
 skills-lock.json
 
+# generated code
+/generated
+
 # Logs
 logs
 *.log
